@@ -17,6 +17,7 @@ async function createSession(userId, io) {
       dataPath: './sessions'
     }),
     puppeteer: {
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
       headless: true,
       args: [
         '--no-sandbox',
@@ -39,25 +40,37 @@ async function createSession(userId, io) {
       sessions.get(userId).qr = qrDataURL;
       sessions.get(userId).status = 'qr_ready';
       io.to(`user_${userId}`).emit('qr', { userId, qr: qrDataURL });
+      console.log(`QR generated for user: ${userId}`);
     } catch (err) {
       console.error('QR error:', err);
     }
+  });
+
+  client.on('authenticated', () => {
+    console.log(`Authenticated: ${userId}`);
+  });
+
+  client.on('loading_screen', (percent, message) => {
+    console.log(`Loading ${userId}: ${percent}% - ${message}`);
   });
 
   client.on('ready', () => {
     sessions.get(userId).status = 'connected';
     sessions.get(userId).qr = null;
     io.to(`user_${userId}`).emit('session_status', { userId, status: 'connected' });
+    console.log(`WhatsApp Connected: ${userId}`);
   });
 
   client.on('disconnected', (reason) => {
     sessions.get(userId).status = 'disconnected';
     io.to(`user_${userId}`).emit('session_status', { userId, status: 'disconnected', reason });
+    console.log(`Disconnected: ${userId} - ${reason}`);
   });
 
   client.on('auth_failure', () => {
     sessions.delete(userId);
     io.to(`user_${userId}`).emit('session_status', { userId, status: 'auth_failed' });
+    console.log(`Auth failed: ${userId}`);
   });
 
   await client.initialize();
